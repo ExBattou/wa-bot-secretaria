@@ -78,18 +78,27 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                 }
 
                 if (userText) {
+                    console.log(`\n=========================================`);
+                    console.log(`📨 MENSAJE ENTRANTE [${from}]: "${userText}"`);
+
                     await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES (?, ?, ?)', [from, 'user', userText]);
                     
+                    console.log(`🔍 Buscando historial para ${from}...`);
                     const logs = await db.all('SELECT role, content FROM conversation_logs WHERE user_phone = ? ORDER BY timestamp DESC LIMIT 10', [from]);
                     const history = logs.reverse().map((l: any) => ({ role: l.role, content: l.content }));
 
+                    console.log(`🧠 Enviando mensaje a la IA...`);
                     const aiResponse = await processText(userText, history);
+                    console.log(`✅ Respuesta de la IA recibida.`);
                     
+                    console.log(`⚙️ Procesando acciones internas (Parser)...`);
                     const finalResponseToUser = await parseAndExecute(from, aiResponse);
 
                     await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES (?, ?, ?)', [from, 'assistant', aiResponse]);
 
+                    console.log(`📤 Enviando respuesta a WhatsApp...`);
                     await sendWhatsAppMessage(from, finalResponseToUser);
+                    console.log(`=========================================\n`);
                 }
             }
             res.sendStatus(200);
