@@ -68,13 +68,49 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                 if (type === 'text') {
                     userText = message.text.body;
                 } else if (type === 'audio') {
-                    console.log(`🎙️ Audio recibido con ID: ${message.audio.id}. Simulando transcripción por ahora...`);
-                    // TO-DO real: 
-                    // 1. Obtener URL del media llamando a la API de WhatsApp con el media.id
-                    // 2. Descargar el archivo .ogg
-                    // 3. userText = await transcribeAudio('/path/to/downloaded/audio.ogg');
+                    console.log(`🎙️ Audio recibido con ID: ${message.audio.id}. Descargando y transcribiendo...`);
+                    const token = process.env.WHATSAPP_ACCESS_TOKEN;
                     
-                    userText = "Por favor agenda una reunión mañana con Carlos y registra un gasto de 5000 en comida."; 
+                    if (!token) {
+                        console.error('⚠️ WHATSAPP_ACCESS_TOKEN no configurado. No se puede descargar el audio.');
+                        userText = "(El usuario envió un audio, pero el sistema no tiene el Token para procesarlo).";
+                    } else {
+                        try {
+                            // 1. Obtener la URL del archivo de WhatsApp
+                            const mediaRes = await axios.get(`https://graph.facebook.com/v17.0/${message.audio.id}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            
+                            // 2. Descargar el archivo de audio
+                            const audioDownload = await axios.get(mediaRes.data.url, {
+                                headers: { Authorization: `Bearer ${token}` },
+                                responseType: 'stream'
+                            });
+
+                            // Guardar temporalmente en la carpeta data
+                            const tempFilePath = path.join(process.env.DATA_PATH || path.join(__dirname, '../../data'), `audio_${Date.now()}.ogg`);
+                            const writer = fs.createWriteStream(tempFilePath);
+                            audioDownload.data.pipe(writer);
+
+                            await new Promise((resolve, reject) => {
+                                writer.on('finish', resolve);
+                                writer.on('error', reject);
+                            });
+
+                            // 3. Transcribir el audio usando Groq (Whisper)
+                            console.log(`🎧 Audio descargado. Enviando a transcribir a Groq...`);
+                            userText = await transcribeAudio(tempFilePath);
+                            console.log(`📝 Transcripción obtenida: "${userText}"`);
+
+                            // 4. Borrar el archivo temporal para no ocupar espacio
+                            if (fs.existsSync(tempFilePath)) {
+                                fs.unlinkSync(tempFilePath);
+                            }
+                        } catch (error: any) {
+                            console.error('❌ Error procesando el audio de WhatsApp:', error.response?.data || error.message);
+                            userText = "(El usuario envió un audio, pero ocurrió un error al descargarlo o transcribirlo).";
+                        }
+                    }
                 }
 
                 if (userText) {
