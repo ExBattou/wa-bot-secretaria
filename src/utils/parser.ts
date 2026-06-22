@@ -2,15 +2,30 @@ import { getDB } from '../config/db';
 import { saveExpense } from '../services/excelService';
 
 export const parseAndExecute = async (user_phone: string, aiResponse: string): Promise<string> => {
-    const jsonRegex = /```json\n([\s\S]*?)\n```/;
-    const match = aiResponse.match(jsonRegex);
+    // 1. Intentamos buscar un bloque de código markdown (con o sin la palabra json)
+    const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
+    let match = aiResponse.match(jsonRegex);
     
+    let jsonText = '';
     let textResponse = aiResponse;
 
     if (match && match[1]) {
+        jsonText = match[1].trim();
+        textResponse = aiResponse.replace(jsonRegex, '').trim();
+    } else {
+        // 2. Fallback: Si la IA no usó las comillas invertidas (```), buscamos si la respuesta termina con un Array [...] o Objeto {...}
+        const fallbackRegex = /(\[[\s\S]*\]|\{[\s\S]*\})$/;
+        const fallbackMatch = aiResponse.match(fallbackRegex);
+        if (fallbackMatch && fallbackMatch[1]) {
+            jsonText = fallbackMatch[1].trim();
+            textResponse = aiResponse.replace(fallbackRegex, '').trim();
+        }
+    }
+
+    if (jsonText) {
         try {
             console.log(`📦 [Parser] Bloque JSON detectado en la respuesta.`);
-            let jsonText = match[1].trim();
+            
             // Fix para cuando la IA manda objetos sueltos separados por saltos de línea en lugar de un array
             if (jsonText.startsWith('{') && jsonText.endsWith('}') && /}\s*\{/.test(jsonText)) {
                 console.log(`⚠️ [Parser] JSON malformado detectado (objetos sueltos). Auto-corrigiendo a un Array...`);
