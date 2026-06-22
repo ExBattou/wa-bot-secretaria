@@ -9,7 +9,13 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string): P
 
     if (match && match[1]) {
         try {
-            const parsedData = JSON.parse(match[1]);
+            let jsonText = match[1].trim();
+            // Fix para cuando la IA manda objetos sueltos separados por saltos de línea en lugar de un array
+            if (jsonText.startsWith('{') && jsonText.endsWith('}') && /}\s*\{/.test(jsonText)) {
+                jsonText = '[' + jsonText.replace(/}\s*\{/g, '},{') + ']';
+            }
+
+            const parsedData = JSON.parse(jsonText);
             textResponse = aiResponse.replace(jsonRegex, '').trim();
 
             const db = getDB();
