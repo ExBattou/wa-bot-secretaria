@@ -42,6 +42,14 @@ export const initDB = async () => {
             content TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_phone TEXT NOT NULL,
+            message TEXT NOT NULL,
+            execute_at DATETIME NOT NULL,
+            status TEXT DEFAULT 'pending'
+        );
     `);
 
     console.log('✅ Base de datos SQLite inicializada correctamente.');

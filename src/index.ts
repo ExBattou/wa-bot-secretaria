@@ -4,6 +4,7 @@ dotenv.config();
 import express from 'express';
 import webhookRoutes from './routes/webhookRoutes';
 import { initDB } from './config/db';
+import { startCronJobs } from './services/cronService';
 
 const app = express();
 app.use(express.json());
@@ -15,6 +16,7 @@ app.use('/webhook', webhookRoutes);
 const startServer = async () => {
     try {
         await initDB();
+        startCronJobs();
         app.listen(Number(PORT), '0.0.0.0', () => {
             console.log(`🚀 Servidor escuchando en http://0.0.0.0:${PORT}`);
         });

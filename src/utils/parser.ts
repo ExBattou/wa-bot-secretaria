@@ -56,6 +56,12 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string): P
                     const tasks = await db.all('SELECT * FROM tasks WHERE status = "pending" AND user_phone = ?', [user_phone]);
                     const taskList = tasks.map((t: any) => `- ${t.title}`).join('\n');
                     textResponse += `\n\n📝 *Tareas pendientes:*\n${taskList || 'No hay tareas pendientes.'}`;
+                } else if (actionData.action === 'add_reminder') {
+                    console.log(`   👉 Programando recordatorio para: ${actionData.data.execute_at}`);
+                    await db.run(
+                        'INSERT INTO reminders (user_phone, message, execute_at) VALUES (?, ?, ?)',
+                        [user_phone, actionData.data.message, actionData.data.execute_at]
+                    );
                 }
             }
 

@@ -6,7 +6,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 
-const sendWhatsAppMessage = async (to: string, text: string) => {
+export const sendWhatsAppMessage = async (to: string, text: string) => {
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_ID;
     
