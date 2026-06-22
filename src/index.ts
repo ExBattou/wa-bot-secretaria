@@ -15,8 +15,8 @@ app.use('/webhook', webhookRoutes);
 const startServer = async () => {
     try {
         await initDB();
-        app.listen(PORT, () => {
-            console.log(`🚀 Servidor escuchando en el puerto ${PORT}`);
+        app.listen(Number(PORT), '0.0.0.0', () => {
+            console.log(`🚀 Servidor escuchando en http://0.0.0.0:${PORT}`);
         });
     } catch (error) {
         console.error('❌ Error iniciando la base de datos:', error);
