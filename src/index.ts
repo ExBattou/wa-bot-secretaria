@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json());
 
 // Montar la carpeta pública para servir el HTML/CSS/JS del Dashboard
-app.use(express.static(path.join(__dirname, '../../public')));
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.use('/webhook', webhookRoutes);
 app.use('/api/web', webRoutes);
