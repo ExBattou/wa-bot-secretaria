@@ -56,6 +56,14 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string): P
                     const tasks = await db.all('SELECT * FROM tasks WHERE status = "pending" AND user_phone = ?', [user_phone]);
                     const taskList = tasks.map((t: any) => `- ${t.title}`).join('\n');
                     textResponse += `\n\n📝 *Tareas pendientes:*\n${taskList || 'No hay tareas pendientes.'}`;
+                } else if (actionData.action === 'delete_task') {
+                    console.log(`   👉 Eliminando tarea: "${actionData.data.title}"`);
+                    await db.run('DELETE FROM tasks WHERE user_phone = ? AND title = ?', [user_phone, actionData.data.title]);
+                    textResponse += `\n\n✅ Tarea eliminada: ${actionData.data.title}`;
+                } else if (actionData.action === 'clear_tasks') {
+                    console.log(`   👉 Eliminando TODAS las tareas pendientes`);
+                    await db.run('DELETE FROM tasks WHERE user_phone = ?', [user_phone]);
+                    textResponse += `\n\n🗑️ Todas las tareas han sido borradas.`;
                 } else if (actionData.action === 'add_reminder') {
                     console.log(`   👉 Programando recordatorio para: ${actionData.data.execute_at}`);
                     await db.run(
