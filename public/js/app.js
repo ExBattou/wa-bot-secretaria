@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorMsg = document.getElementById('error-msg');
     
     if (!token) {
-        errorMsg.textContent = 'Enlace inválido. Pídele a Carl un nuevo link seguro.';
+        errorMsg.textContent = 'Enlace inválido. Pídele a Karl un nuevo link seguro.';
         pinInput.disabled = true;
         loginBtn.disabled = true;
         return;

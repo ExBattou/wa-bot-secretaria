@@ -38,7 +38,6 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
             }
 
             const parsedData = JSON.parse(jsonText);
-            textResponse = aiResponse.replace(jsonRegex, '').trim();
 
             const db = getDB();
             

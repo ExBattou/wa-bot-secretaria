@@ -25,7 +25,7 @@ router.post('/auth', async (req, res) => {
         if (now > session.expires_at) {
             // Opcional: borrar sesión expirada para limpiar DB
             await db.run('DELETE FROM web_sessions WHERE token = ?', [token]);
-            return res.status(401).json({ success: false, message: 'La sesión expiró (pasaron los 10 minutos). Pídele a Carl un link nuevo.' });
+            return res.status(401).json({ success: false, message: 'La sesión expiró (pasaron los 10 minutos). Pídele a Karl un link nuevo.' });
         }
 
         const user_phone = session.user_phone;
