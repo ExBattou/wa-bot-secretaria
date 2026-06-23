@@ -30,8 +30,8 @@ export const startCronJobs = () => {
                 const textToSend = `⏰ *Recordatorio programado:*\n${reminder.message}`;
                 await sendWhatsAppMessage(reminder.user_phone, textToSend);
 
-                // Lo marcamos como enviado
-                await db.run('UPDATE reminders SET status = "sent" WHERE id = ?', [reminder.id]);
+                // Lo borramos de la base de datos (como pidió el usuario)
+                await db.run('DELETE FROM reminders WHERE id = ?', [reminder.id]);
             }
         } catch (error) {
             console.error('❌ [Cron] Error ejecutando tareas en segundo plano:', error);

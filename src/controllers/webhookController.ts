@@ -56,6 +56,10 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
         const body = req.body;
 
         if (body.object) {
+            // Respondemos 200 OK INMEDIATAMENTE a WhatsApp para evitar que haga reintentos
+            // si la API de Groq tarda demasiado en responder.
+            res.sendStatus(200);
+
             if (body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages && body.entry[0].changes[0].value.messages[0]) {
                 const message = body.entry[0].changes[0].value.messages[0];
                 const from = message.from; 
@@ -142,12 +146,13 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                     console.log(`=========================================\n`);
                 }
             }
-            res.sendStatus(200);
         } else {
             res.sendStatus(404);
         }
     } catch (error) {
         console.error('Error handling webhook:', error);
-        res.sendStatus(500);
+        if (!res.headersSent) {
+            res.sendStatus(500);
+        }
     }
 };
