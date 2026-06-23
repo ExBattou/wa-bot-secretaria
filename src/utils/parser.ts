@@ -14,12 +14,16 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
         jsonText = match[1].trim();
         textResponse = aiResponse.replace(jsonRegex, '').trim();
     } else {
-        // 2. Fallback: Si la IA no usó las comillas invertidas (```), buscamos si la respuesta termina con un Array [...] o Objeto {...}
-        const fallbackRegex = /(\[[\s\S]*\]|\{[\s\S]*\})$/;
+        // 2. Fallback blindado: Buscamos si la respuesta incluye un Array [...] o Objeto {...} en el texto
+        const fallbackRegex = /(\[[\s\S]*\]|\{[\s\S]*\})/;
         const fallbackMatch = aiResponse.match(fallbackRegex);
         if (fallbackMatch && fallbackMatch[1]) {
             jsonText = fallbackMatch[1].trim();
-            textResponse = aiResponse.replace(fallbackRegex, '').trim();
+            // Borramos el JSON extraído del texto original
+            textResponse = aiResponse.replace(fallbackMatch[0], '').trim();
+            
+            // Limpieza de emergencia por si quedaron etiquetas markdown rotas (ej: ```json)
+            textResponse = textResponse.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
         }
     }
 

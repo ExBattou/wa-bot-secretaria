@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDB } from '../config/db';
 import { sendWhatsAppMessage } from '../controllers/webhookController';
+import { generateProactiveGreeting } from './groqService';
 
 export const startCronJobs = () => {
     // Se ejecuta cada minuto (* * * * *)
@@ -37,5 +38,34 @@ export const startCronJobs = () => {
         }
     });
 
-    console.log('⏳ Servicio de Cron (recordatorios en 2do plano) iniciado.');
+    // 2. Cron de seguimientos diarios (09:00, 12:00, 17:00 AR time)
+    const scheduleDailyGreeting = (hour: string, timeOfDay: '09:00' | '12:00' | '17:00') => {
+        cron.schedule(`0 ${hour} * * *`, async () => {
+            console.log(`⏰ [Cron] Ejecutando seguimiento diario de las ${timeOfDay}`);
+            try {
+                const db = getDB();
+                // Find all distinct users with pending tasks
+                const users = await db.all('SELECT DISTINCT user_phone FROM tasks WHERE status = "pending"');
+                
+                for (const user of users) {
+                    const pendingTasks = await db.all('SELECT * FROM tasks WHERE user_phone = ? AND status = "pending"', [user.user_phone]);
+                    
+                    if (pendingTasks.length > 0) {
+                        const greetingText = await generateProactiveGreeting(pendingTasks, timeOfDay);
+                        await sendWhatsAppMessage(user.user_phone, greetingText);
+                    }
+                }
+            } catch (error) {
+                console.error(`❌ [Cron] Error en seguimiento diario de las ${timeOfDay}:`, error);
+            }
+        }, {
+            timezone: 'America/Argentina/Buenos_Aires'
+        });
+    };
+
+    scheduleDailyGreeting('9', '09:00');
+    scheduleDailyGreeting('12', '12:00');
+    scheduleDailyGreeting('17', '17:00');
+
+    console.log('⏳ Servicio de Cron (recordatorios y seguimientos diarios) iniciado.');
 };
