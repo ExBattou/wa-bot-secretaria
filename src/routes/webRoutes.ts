@@ -48,4 +48,42 @@ router.post('/auth', async (req, res) => {
     }
 });
 
+router.delete('/item', async (req, res) => {
+    try {
+        const { token, pin, type, id } = req.body;
+        
+        if (!token || !pin || !type || !id) {
+            return res.status(400).json({ success: false, message: 'Datos incompletos' });
+        }
+
+        const db = getDB();
+        const session = await db.get('SELECT * FROM web_sessions WHERE token = ? AND pin = ?', [token, pin]);
+        
+        if (!session) {
+            return res.status(401).json({ success: false, message: 'PIN incorrecto o sesión inválida' });
+        }
+
+        const now = new Date().toISOString();
+        if (now > session.expires_at) {
+            return res.status(401).json({ success: false, message: 'La sesión expiró. Pide un link nuevo.' });
+        }
+
+        const user_phone = session.user_phone;
+
+        if (type === 'task') {
+            await db.run('DELETE FROM tasks WHERE id = ? AND user_phone = ?', [id, user_phone]);
+        } else if (type === 'reminder') {
+            await db.run('DELETE FROM reminders WHERE id = ? AND user_phone = ?', [id, user_phone]);
+        } else {
+            return res.status(400).json({ success: false, message: 'Tipo de ítem inválido' });
+        }
+
+        return res.json({ success: true, message: 'Ítem eliminado correctamente' });
+
+    } catch (error) {
+        console.error('Error borrando ítem desde la web:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
 export default router;

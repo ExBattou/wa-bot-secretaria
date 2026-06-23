@@ -37,10 +37,13 @@ header h1 { font-size: 1.6rem; font-weight: 600; }
 .card { background: var(--card-bg); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); padding: 25px; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 .list-card h2 { font-size: 1.2rem; margin-bottom: 20px; color: var(--accent); border-bottom: 1px solid #333; padding-bottom: 10px; }
 ul { list-style: none; }
-li { padding: 15px; background: rgba(0,0,0,0.3); border-radius: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; border-left: 4px solid #333; transition: transform 0.2s; }
+li { position: relative; padding: 15px 50px 15px 15px; background: rgba(0,0,0,0.3); border-radius: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; border-left: 4px solid #333; transition: transform 0.2s; }
 li:hover { transform: translateX(5px); }
 li.item-task { border-left-color: #2196f3; }
 li.item-reminder { border-left-color: #ff9800; }
 .item-title { font-weight: 500; font-size: 1.05rem; }
 .item-meta { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
 .empty-state { text-align: center; color: var(--text-secondary); padding: 20px; font-style: italic; background: rgba(255,255,255,0.02); border-radius: 8px; }
+
+.delete-btn { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 1.2rem; opacity: 0.5; transition: opacity 0.2s, transform 0.2s; }
+.delete-btn:hover { opacity: 1; transform: translateY(-50%) scale(1.15); }

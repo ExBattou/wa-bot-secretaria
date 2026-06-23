@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.innerHTML = `
                     <div class="item-title">${t.title}</div>
                     ${t.due_date ? '<div class="item-meta">📅 Límite: ' + t.due_date + '</div>' : ''}
+                    <div class="delete-btn" onclick="deleteItem('task', ${t.id})" title="Eliminar tarea">🗑️</div>
                 `;
                 tasksList.appendChild(li);
             });
@@ -94,9 +95,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.innerHTML = `
                     <div class="item-title">${r.message}</div>
                     <div class="item-meta">⏰ Sonará: ${date}</div>
+                    <div class="delete-btn" onclick="deleteItem('reminder', ${r.id})" title="Eliminar alarma">🗑️</div>
                 `;
                 remindersList.appendChild(li);
             });
         }
     }
+
+    window.deleteItem = async (type, id) => {
+        const pin = prompt('Por seguridad, ingresá tu PIN de 6 dígitos para borrar este ítem:');
+        if (!pin) return;
+        
+        try {
+            const res = await fetch('/api/web/item', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, pin, type, id })
+            });
+            const result = await res.json();
+            if (result.success) {
+                // Recargamos los datos silenciosamente simulando un click en el botón de login
+                loginBtn.click();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error de conexión al intentar borrar el ítem.');
+        }
+    };
 });
