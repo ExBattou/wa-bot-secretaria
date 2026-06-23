@@ -50,6 +50,13 @@ export const initDB = async () => {
             execute_at DATETIME NOT NULL,
             status TEXT DEFAULT 'pending'
         );
+
+        CREATE TABLE IF NOT EXISTS web_sessions (
+            token TEXT PRIMARY KEY,
+            user_phone TEXT NOT NULL,
+            pin TEXT NOT NULL,
+            expires_at DATETIME NOT NULL
+        );
     `);
 
     console.log('✅ Base de datos SQLite inicializada correctamente.');

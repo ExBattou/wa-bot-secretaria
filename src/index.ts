@@ -2,16 +2,22 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
+import path from 'path';
 import webhookRoutes from './routes/webhookRoutes';
+import webRoutes from './routes/webRoutes';
 import { initDB } from './config/db';
 import { startCronJobs } from './services/cronService';
 
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+// Montar la carpeta pública para servir el HTML/CSS/JS del Dashboard
+app.use(express.static(path.join(__dirname, '../../public')));
 
 app.use('/webhook', webhookRoutes);
+app.use('/api/web', webRoutes);
+
+const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
     try {

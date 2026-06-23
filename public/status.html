@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carl | Dashboard de Tareas</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="auth-container" class="container">
+        <div class="card auth-card">
+            <div class="lock-icon">🔒</div>
+            <h1>Acceso Restringido</h1>
+            <p>Ingresa el código temporal de 6 dígitos que te dio Carl por WhatsApp.</p>
+            <input type="text" id="pin-input" maxlength="6" placeholder="• • • • • •" autocomplete="off">
+            <p id="error-msg" class="error-msg"></p>
+            <button id="login-btn">Desbloquear Dashboard</button>
+        </div>
+    </div>
+
+    <div id="dashboard-container" class="container hidden">
+        <header>
+            <h1>Hola, acá están tus pendientes</h1>
+            <button id="logout-btn">Cerrar Sesión</button>
+        </header>
+
+        <div class="grid">
+            <div class="card list-card">
+                <h2>📝 Tareas de tu Agenda</h2>
+                <ul id="tasks-list">
+                    <!-- Populated via JS -->
+                </ul>
+            </div>
+            
+            <div class="card list-card">
+                <h2>⏰ Alarmas y Recordatorios</h2>
+                <ul id="reminders-list">
+                    <!-- Populated via JS -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

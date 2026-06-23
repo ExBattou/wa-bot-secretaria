@@ -127,8 +127,13 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                     const aiResponse = await processText(userText, history);
                     console.log(`✅ Respuesta de la IA recibida.`);
                     
+                    // Extraemos la URL base del servidor dinámicamente
+                    const host = req.headers.host || 'localhost:3000';
+                    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+                    const baseUrl = `${protocol}://${host}`;
+
                     console.log(`⚙️ Procesando acciones internas (Parser)...`);
-                    const finalResponseToUser = await parseAndExecute(from, aiResponse);
+                    const finalResponseToUser = await parseAndExecute(from, aiResponse, baseUrl);
 
                     await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES (?, ?, ?)', [from, 'assistant', aiResponse]);
 

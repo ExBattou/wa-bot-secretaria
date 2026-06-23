@@ -1,7 +1,8 @@
 import { getDB } from '../config/db';
 import { saveExpense } from '../services/excelService';
+import crypto from 'crypto';
 
-export const parseAndExecute = async (user_phone: string, aiResponse: string): Promise<string> => {
+export const parseAndExecute = async (user_phone: string, aiResponse: string, baseUrl: string = ''): Promise<string> => {
     // 1. Intentamos buscar un bloque de código markdown (con o sin la palabra json)
     const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
     let match = aiResponse.match(jsonRegex);
@@ -70,6 +71,22 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string): P
                         'INSERT INTO reminders (user_phone, message, execute_at) VALUES (?, ?, ?)',
                         [user_phone, actionData.data.message, actionData.data.execute_at]
                     );
+                } else if (actionData.action === 'generate_dashboard_link') {
+                    console.log(`   👉 Generando link seguro para Dashboard Web`);
+                    const token = crypto.randomUUID();
+                    const pin = Math.floor(100000 + Math.random() * 900000).toString(); // Pin de 6 dígitos
+                    
+                    // Expira en 10 minutos exactos
+                    const expiresAt = new Date();
+                    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+                    
+                    await db.run(
+                        'INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES (?, ?, ?, ?)',
+                        [token, user_phone, pin, expiresAt.toISOString()]
+                    );
+
+                    const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
+                    textResponse += `\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;
                 }
             }
 
