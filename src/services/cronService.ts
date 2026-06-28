@@ -51,8 +51,22 @@ export const startCronJobs = () => {
                     const pendingTasks = await db.all('SELECT * FROM tasks WHERE user_phone = ? AND status = "pending"', [user.user_phone]);
                     
                     if (pendingTasks.length > 0) {
-                        const greetingText = await generateProactiveGreeting(pendingTasks, timeOfDay);
-                        await sendWhatsAppMessage(user.user_phone, greetingText);
+                        // Verificamos si el usuario tiene encendido este recordatorio
+                        const prefs = await db.get('SELECT * FROM user_preferences WHERE user_phone = ?', [user.user_phone]);
+                        
+                        let shouldSend = true;
+                        if (prefs) {
+                            if (timeOfDay === '09:00' && !prefs.daily_09) shouldSend = false;
+                            if (timeOfDay === '12:00' && !prefs.daily_12) shouldSend = false;
+                            if (timeOfDay === '17:00' && !prefs.daily_17) shouldSend = false;
+                        }
+
+                        if (shouldSend) {
+                            const greetingText = await generateProactiveGreeting(pendingTasks, timeOfDay);
+                            await sendWhatsAppMessage(user.user_phone, greetingText);
+                        } else {
+                            console.log(`⏰ [Cron] Recordatorio de ${timeOfDay} salteado para ${user.user_phone} por configuración del usuario.`);
+                        }
                     }
                 }
             } catch (error) {

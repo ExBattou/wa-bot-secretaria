@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 authContainer.classList.add('hidden');
                 dashboardContainer.classList.remove('hidden');
                 renderData(result.data.tasks, result.data.reminders);
+                setupPreferences(result.data.preferences);
             } else {
                 // PIN incorrecto o expirado
                 errorMsg.textContent = result.message || 'Código incorrecto.';
@@ -123,4 +124,51 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error de conexión al intentar borrar el ítem.');
         }
     };
+
+    function setupPreferences(prefs) {
+        const p09 = document.getElementById('pref-09');
+        const p12 = document.getElementById('pref-12');
+        const p17 = document.getElementById('pref-17');
+        const statusEl = document.getElementById('pref-status');
+
+        if (prefs) {
+            p09.checked = !!prefs.daily_09;
+            p12.checked = !!prefs.daily_12;
+            p17.checked = !!prefs.daily_17;
+        }
+
+        const updatePrefs = async () => {
+            statusEl.textContent = 'Guardando...';
+            statusEl.style.color = 'var(--text-secondary)';
+            try {
+                const res = await fetch('/api/web/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token,
+                        pin: pinInput.value.trim(),
+                        daily_09: p09.checked,
+                        daily_12: p12.checked,
+                        daily_17: p17.checked
+                    })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    statusEl.textContent = 'Preferencias guardadas exitosamente.';
+                    statusEl.style.color = 'var(--success)';
+                    setTimeout(() => statusEl.textContent = '', 3000);
+                } else {
+                    statusEl.textContent = 'Error: ' + result.message;
+                    statusEl.style.color = 'var(--error)';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error de red al guardar preferencias.';
+                statusEl.style.color = 'var(--error)';
+            }
+        };
+
+        p09.addEventListener('change', updatePrefs);
+        p12.addEventListener('change', updatePrefs);
+        p17.addEventListener('change', updatePrefs);
+    }
 });

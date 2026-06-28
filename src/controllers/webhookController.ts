@@ -121,6 +121,65 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                     console.log(`\n=========================================`);
                     console.log(`📨 MENSAJE ENTRANTE [${from}]: "${userText}"`);
 
+                    // --- MONETIZATION & LIMITS LOGIC ---
+                    const now = new Date();
+                    let user = await db.get('SELECT * FROM users WHERE phone = ?', [from]);
+                    
+                    if (!user) {
+                        await db.run('INSERT INTO users (phone, messages_count, cycle_start_date) VALUES (?, ?, ?)', [from, 0, now.toISOString()]);
+                        user = await db.get('SELECT * FROM users WHERE phone = ?', [from]);
+                    }
+
+                    // 1. Reset check (30 days)
+                    const cycleStart = new Date(user.cycle_start_date);
+                    const diffDays = (now.getTime() - cycleStart.getTime()) / (1000 * 3600 * 24);
+                    if (diffDays >= 30) {
+                        await db.run('UPDATE users SET messages_count = 0, cycle_start_date = ? WHERE phone = ?', [now.toISOString(), from]);
+                        user.messages_count = 0;
+                        user.cycle_start_date = now.toISOString();
+                    }
+
+                    // 2. Promo Code Check
+                    const upperText = userText.trim().toUpperCase();
+                    if (upperText.startsWith('PROMO ')) {
+                        const code = upperText.split(' ')[1];
+                        if (code) {
+                            const promo = await db.get('SELECT * FROM promo_codes WHERE code = ? AND uses_left > 0', [code]);
+                            if (promo) {
+                                let premiumUntil = new Date();
+                                if (promo.type === 'forever') {
+                                    premiumUntil = new Date('2099-12-31T23:59:59Z');
+                                } else { // monthly
+                                    premiumUntil.setDate(premiumUntil.getDate() + 30);
+                                }
+                                
+                                await db.run('UPDATE users SET is_premium_until = ? WHERE phone = ?', [premiumUntil.toISOString(), from]);
+                                await db.run('UPDATE promo_codes SET uses_left = uses_left - 1 WHERE code = ?', [code]);
+                                
+                                await sendWhatsAppMessage(from, '🎉 ¡Código promocional aplicado con éxito! Ya tenés acceso Premium sin límites.');
+                                return; // Evitar que siga a la IA
+                            } else {
+                                await sendWhatsAppMessage(from, '❌ El código ingresado no existe o ya no tiene usos disponibles.');
+                                return;
+                            }
+                        }
+                    }
+
+                    // 3. Limits Check
+                    const isPremium = user.is_premium_until && new Date(user.is_premium_until) > now;
+                    if (!isPremium && user.messages_count >= 20) {
+                        const mpLink = process.env.MP_PAYMENT_LINK || 'https://link.mercadopago.com.ar/tu_link_aca';
+                        const blockMsg = `🛑 ¡Llegaste al límite de tus 20 mensajes gratuitos de este mes!\n\nPara seguir usando a Karl sin límites, podés adquirir tu pase Premium acá: ${mpLink}\n\n_(Si tenés un código de promoción, envialo escribiendo PROMO seguido de tu código)_`;
+                        await sendWhatsAppMessage(from, blockMsg);
+                        return; // Bloqueado, no sigue a la IA
+                    }
+
+                    // Incrementar uso si no es premium
+                    if (!isPremium) {
+                        await db.run('UPDATE users SET messages_count = messages_count + 1 WHERE phone = ?', [from]);
+                    }
+                    // -----------------------------------
+
                     await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES (?, ?, ?)', [from, 'user', userText]);
                     
                     console.log(`🔍 Buscando historial para ${from}...`);

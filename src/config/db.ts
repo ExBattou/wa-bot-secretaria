@@ -9,7 +9,7 @@ if (!fs.existsSync(dataPath)) {
     fs.mkdirSync(dataPath, { recursive: true });
 }
 
-const dbPath = path.join(dataPath, 'database.sqlite');
+export const dbPath = path.join(dataPath, 'database.sqlite');
 
 let dbInstance: Database | null = null;
 
@@ -57,6 +57,32 @@ export const initDB = async () => {
             pin TEXT NOT NULL,
             expires_at DATETIME NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS user_preferences (
+            user_phone TEXT PRIMARY KEY,
+            daily_09 BOOLEAN DEFAULT 1,
+            daily_12 BOOLEAN DEFAULT 1,
+            daily_17 BOOLEAN DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS users (
+            phone TEXT PRIMARY KEY,
+            is_premium_until DATETIME,
+            messages_count INTEGER DEFAULT 0,
+            cycle_start_date DATETIME
+        );
+
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            code TEXT PRIMARY KEY,
+            uses_left INTEGER DEFAULT 10,
+            type TEXT NOT NULL
+        );
+    `);
+
+    // Insertar algunos códigos promocionales por defecto si no existen
+    await dbInstance.exec(`
+        INSERT OR IGNORE INTO promo_codes (code, uses_left, type) VALUES ('KARL30', 10, 'monthly');
+        INSERT OR IGNORE INTO promo_codes (code, uses_left, type) VALUES ('KARLADMIN', 10, 'forever');
     `);
 
     console.log('✅ Base de datos SQLite inicializada correctamente.');

@@ -101,6 +101,22 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                 }
             }
 
+            // --- LÓGICA DE DEDUPLICACIÓN DE TAREAS ---
+            // Eliminamos tareas duplicadas para el mismo usuario que tengan el mismo título 
+            // y hayan sido creadas en el mismo minuto.
+            console.log(`🧹 [Parser] Limpiando posibles tareas duplicadas para el usuario...`);
+            await db.run(`
+                DELETE FROM tasks
+                WHERE user_phone = ? 
+                AND id NOT IN (
+                    SELECT MIN(id)
+                    FROM tasks
+                    WHERE user_phone = ?
+                    GROUP BY title, strftime('%Y-%m-%d %H:%M', created_at)
+                )
+            `, [user_phone, user_phone]);
+            // ------------------------------------------
+
         } catch (error) {
             console.error('❌ [Parser] Error parseando o ejecutando la acción JSON:', error);
         }

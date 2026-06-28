@@ -33,17 +33,58 @@ router.post('/auth', async (req, res) => {
         // Si pasó la seguridad, buscamos los datos reales del usuario
         const tasks = await db.all('SELECT * FROM tasks WHERE user_phone = ? AND status = "pending" ORDER BY id DESC', [user_phone]);
         const reminders = await db.all('SELECT * FROM reminders WHERE user_phone = ? AND status = "pending" ORDER BY execute_at ASC', [user_phone]);
+        
+        let preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = ?', [user_phone]);
+        if (!preferences) {
+            await db.run('INSERT INTO user_preferences (user_phone) VALUES (?)', [user_phone]);
+            preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = ?', [user_phone]);
+        }
 
         return res.json({
             success: true,
             data: {
                 tasks,
-                reminders
+                reminders,
+                preferences
             }
         });
 
     } catch (error) {
         console.error('Error en Web Auth:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+router.post('/preferences', async (req, res) => {
+    try {
+        const { token, pin, daily_09, daily_12, daily_17 } = req.body;
+
+        if (!token || !pin) {
+            return res.status(400).json({ success: false, message: 'Faltan credenciales' });
+        }
+
+        const db = getDB();
+        const session = await db.get('SELECT * FROM web_sessions WHERE token = ? AND pin = ?', [token, pin]);
+        
+        if (!session) {
+            return res.status(401).json({ success: false, message: 'PIN incorrecto o sesión inválida' });
+        }
+
+        const now = new Date().toISOString();
+        if (now > session.expires_at) {
+            return res.status(401).json({ success: false, message: 'La sesión expiró. Pide un link nuevo.' });
+        }
+
+        const user_phone = session.user_phone;
+
+        await db.run(
+            'UPDATE user_preferences SET daily_09 = ?, daily_12 = ?, daily_17 = ? WHERE user_phone = ?',
+            [daily_09 ? 1 : 0, daily_12 ? 1 : 0, daily_17 ? 1 : 0, user_phone]
+        );
+
+        return res.json({ success: true, message: 'Preferencias actualizadas' });
+    } catch (error) {
+        console.error('Error actualizando preferencias:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
