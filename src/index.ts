@@ -8,6 +8,8 @@ import webRoutes from './routes/webRoutes';
 import { initDB } from './config/db';
 import { startCronJobs } from './services/cronService';
 
+import adminRoutes from './routes/adminRoutes';
+
 const app = express();
 app.use(express.json());
 
@@ -16,6 +18,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 app.use('/webhook', webhookRoutes);
 app.use('/api/web', webRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 3000;
 
