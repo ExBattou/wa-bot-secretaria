@@ -36,20 +36,20 @@ router.get('/stats', authMiddleware, async (req, res) => {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
         const totalUsers = await db.get('SELECT COUNT(*) as count FROM users');
-        const premiumUsers = await db.get('SELECT COUNT(*) as count FROM users WHERE is_premium_until > ?', [now.toISOString()]);
+        const premiumUsers = await db.get('SELECT COUNT(*) as count FROM users WHERE is_premium_until > $1', [now.toISOString()]);
 
         // Mensajes (Hoy y Mes)
         const messagesData = await db.all(`
             SELECT 
                 role,
                 CASE 
-                    WHEN timestamp >= ? THEN 'today'
-                    WHEN timestamp >= ? THEN 'month'
+                    WHEN timestamp >= $1 THEN 'today'
+                    WHEN timestamp >= $2 THEN 'month'
                     ELSE 'older'
                 END as timeframe,
                 COUNT(*) as count
             FROM conversation_logs
-            WHERE timestamp >= ?
+            WHERE timestamp >= $3
             GROUP BY role, timeframe
         `, [startOfDay, startOfMonth, startOfMonth]);
 
@@ -107,13 +107,13 @@ router.post('/set-premium', authMiddleware, async (req, res) => {
         if (!phone) return res.status(400).json({ success: false, message: 'Falta el teléfono' });
 
         const db = getDB();
-        const user = await db.get('SELECT * FROM users WHERE phone = ?', [phone]);
+        const user = await db.get('SELECT * FROM users WHERE phone = $1', [phone]);
         if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
 
         const premiumUntil = new Date();
         premiumUntil.setDate(premiumUntil.getDate() + 30);
 
-        await db.run('UPDATE users SET is_premium_until = ? WHERE phone = ?', [premiumUntil.toISOString(), phone]);
+        await db.run('UPDATE users SET is_premium_until = $1 WHERE phone = $2', [premiumUntil.toISOString(), phone]);
 
         res.json({ success: true, message: 'Usuario convertido a Premium por 30 días.' });
     } catch (error) {

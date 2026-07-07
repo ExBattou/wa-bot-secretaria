@@ -52,17 +52,17 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                 } else if (actionData.action === 'add_task') {
                     console.log(`   👉 Guardando tarea en SQLite: "${actionData.data.title}"`);
                     await db.run(
-                        'INSERT INTO tasks (user_phone, title, due_date) VALUES (?, ?, ?)',
+                        'INSERT INTO tasks (user_phone, title, due_date) VALUES ($1, $2, $3)',
                         [user_phone, actionData.data.title, actionData.data.due_date || null]
                     );
                 } else if (actionData.action === 'list_tasks') {
                     console.log(`   👉 Buscando tareas pendientes...`);
-                    const tasks = await db.all('SELECT * FROM tasks WHERE status = "pending" AND user_phone = ?', [user_phone]);
+                    const tasks = await db.all('SELECT * FROM tasks WHERE status = "pending" AND user_phone = $1', [user_phone]);
                     const taskList = tasks.map((t: any) => `- ${t.title}`).join('\n');
                     textResponse += `\n\n📝 *Tareas pendientes:*\n${taskList || 'No hay tareas pendientes.'}`;
                 } else if (actionData.action === 'list_reminders') {
                     console.log(`   👉 Buscando alarmas programadas...`);
-                    const reminders = await db.all('SELECT * FROM reminders WHERE status = "pending" AND user_phone = ?', [user_phone]);
+                    const reminders = await db.all('SELECT * FROM reminders WHERE status = "pending" AND user_phone = $1', [user_phone]);
                     const remList = reminders.map((r: any) => {
                         const dateStr = new Date(r.execute_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
                         return `- ${r.message} (⏰ ${dateStr})`;
@@ -70,16 +70,16 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                     textResponse += `\n\n⏰ *Tus alarmas programadas:*\n${remList || 'No tenés alarmas programadas en este momento.'}`;
                 } else if (actionData.action === 'delete_task') {
                     console.log(`   👉 Eliminando tarea: "${actionData.data.title}"`);
-                    await db.run('DELETE FROM tasks WHERE user_phone = ? AND title = ?', [user_phone, actionData.data.title]);
+                    await db.run('DELETE FROM tasks WHERE user_phone = $1 AND title = $2', [user_phone, actionData.data.title]);
                     textResponse += `\n\n✅ Tarea eliminada: ${actionData.data.title}`;
                 } else if (actionData.action === 'clear_tasks') {
                     console.log(`   👉 Eliminando TODAS las tareas pendientes`);
-                    await db.run('DELETE FROM tasks WHERE user_phone = ?', [user_phone]);
+                    await db.run('DELETE FROM tasks WHERE user_phone = $1', [user_phone]);
                     textResponse += `\n\n🗑️ Todas las tareas han sido borradas.`;
                 } else if (actionData.action === 'add_reminder') {
                     console.log(`   👉 Programando recordatorio para: ${actionData.data.execute_at}`);
                     await db.run(
-                        'INSERT INTO reminders (user_phone, message, execute_at) VALUES (?, ?, ?)',
+                        'INSERT INTO reminders (user_phone, message, execute_at) VALUES ($1, $2, $3)',
                         [user_phone, actionData.data.message, actionData.data.execute_at]
                     );
                 } else if (actionData.action === 'generate_dashboard_link') {
@@ -92,7 +92,7 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                     expiresAt.setMinutes(expiresAt.getMinutes() + 10);
                     
                     await db.run(
-                        'INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES (?, ?, ?, ?)',
+                        'INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES ($1, $2, $3, $4)',
                         [token, user_phone, pin, expiresAt.toISOString()]
                     );
 
@@ -107,12 +107,12 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
             console.log(`🧹 [Parser] Limpiando posibles tareas duplicadas para el usuario...`);
             await db.run(`
                 DELETE FROM tasks
-                WHERE user_phone = ? 
+                WHERE user_phone = $1 
                 AND id NOT IN (
                     SELECT MIN(id)
                     FROM tasks
-                    WHERE user_phone = ?
-                    GROUP BY title, strftime('%Y-%m-%d %H:%M', created_at)
+                    WHERE user_phone = $2
+                    GROUP BY title, date_trunc('minute', created_at)
                 )
             `, [user_phone, user_phone]);
             // ------------------------------------------

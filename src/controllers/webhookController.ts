@@ -123,18 +123,18 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
 
                     // --- MONETIZATION & LIMITS LOGIC ---
                     const now = new Date();
-                    let user = await db.get('SELECT * FROM users WHERE phone = ?', [from]);
+                    let user = await db.get('SELECT * FROM users WHERE phone = $1', [from]);
                     
                     if (!user) {
-                        await db.run('INSERT INTO users (phone, messages_count, cycle_start_date) VALUES (?, ?, ?)', [from, 0, now.toISOString()]);
-                        user = await db.get('SELECT * FROM users WHERE phone = ?', [from]);
+                        await db.run('INSERT INTO users (phone, messages_count, cycle_start_date) VALUES ($1, $2, $3)', [from, 0, now.toISOString()]);
+                        user = await db.get('SELECT * FROM users WHERE phone = $1', [from]);
                     }
 
                     // 1. Reset check (30 days)
                     const cycleStart = new Date(user.cycle_start_date);
                     const diffDays = (now.getTime() - cycleStart.getTime()) / (1000 * 3600 * 24);
                     if (diffDays >= 30) {
-                        await db.run('UPDATE users SET messages_count = 0, cycle_start_date = ? WHERE phone = ?', [now.toISOString(), from]);
+                        await db.run('UPDATE users SET messages_count = 0, cycle_start_date = $1 WHERE phone = $2', [now.toISOString(), from]);
                         user.messages_count = 0;
                         user.cycle_start_date = now.toISOString();
                     }
@@ -144,7 +144,7 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                     if (upperText.startsWith('PROMO ')) {
                         const code = upperText.split(' ')[1];
                         if (code) {
-                            const promo = await db.get('SELECT * FROM promo_codes WHERE code = ? AND uses_left > 0', [code]);
+                            const promo = await db.get('SELECT * FROM promo_codes WHERE code = $1 AND uses_left > 0', [code]);
                             if (promo) {
                                 let premiumUntil = new Date();
                                 if (promo.type === 'forever') {
@@ -153,8 +153,8 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                                     premiumUntil.setDate(premiumUntil.getDate() + 30);
                                 }
                                 
-                                await db.run('UPDATE users SET is_premium_until = ? WHERE phone = ?', [premiumUntil.toISOString(), from]);
-                                await db.run('UPDATE promo_codes SET uses_left = uses_left - 1 WHERE code = ?', [code]);
+                                await db.run('UPDATE users SET is_premium_until = $1 WHERE phone = $2', [premiumUntil.toISOString(), from]);
+                                await db.run('UPDATE promo_codes SET uses_left = uses_left - 1 WHERE code = $1', [code]);
                                 
                                 await sendWhatsAppMessage(from, '🎉 ¡Código promocional aplicado con éxito! Ya tenés acceso Premium sin límites.');
                                 return; // Evitar que siga a la IA
@@ -176,14 +176,14 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
 
                     // Incrementar uso si no es premium
                     if (!isPremium) {
-                        await db.run('UPDATE users SET messages_count = messages_count + 1 WHERE phone = ?', [from]);
+                        await db.run('UPDATE users SET messages_count = messages_count + 1 WHERE phone = $1', [from]);
                     }
                     // -----------------------------------
 
-                    await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES (?, ?, ?)', [from, 'user', userText]);
+                    await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES ($1, $2, $3)', [from, 'user', userText]);
                     
                     console.log(`🔍 Buscando historial para ${from}...`);
-                    const logs = await db.all('SELECT role, content FROM conversation_logs WHERE user_phone = ? ORDER BY timestamp DESC LIMIT 10', [from]);
+                    const logs = await db.all('SELECT role, content FROM conversation_logs WHERE user_phone = $1 ORDER BY timestamp DESC LIMIT 10', [from]);
                     const history = logs.reverse().map((l: any) => ({ role: l.role, content: l.content }));
 
                     console.log(`🧠 Enviando mensaje a la IA...`);
@@ -198,7 +198,7 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                     console.log(`⚙️ Procesando acciones internas (Parser)...`);
                     const finalResponseToUser = await parseAndExecute(from, aiResponse, baseUrl);
 
-                    await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES (?, ?, ?)', [from, 'assistant', aiResponse]);
+                    await db.run('INSERT INTO conversation_logs (user_phone, role, content) VALUES ($1, $2, $3)', [from, 'assistant', aiResponse]);
 
                     console.log(`📤 Enviando respuesta a WhatsApp...`);
                     await sendWhatsAppMessage(from, finalResponseToUser);

@@ -14,7 +14,7 @@ router.post('/auth', async (req, res) => {
         const db = getDB();
         
         // Buscar la sesión en SQLite
-        const session = await db.get('SELECT * FROM web_sessions WHERE token = ? AND pin = ?', [token, pin]);
+        const session = await db.get('SELECT * FROM web_sessions WHERE token = $1 AND pin = $2', [token, pin]);
         
         if (!session) {
             return res.status(401).json({ success: false, message: 'PIN o enlace incorrecto' });
@@ -24,20 +24,20 @@ router.post('/auth', async (req, res) => {
         const now = new Date().toISOString();
         if (now > session.expires_at) {
             // Opcional: borrar sesión expirada para limpiar DB
-            await db.run('DELETE FROM web_sessions WHERE token = ?', [token]);
+            await db.run('DELETE FROM web_sessions WHERE token = $1', [token]);
             return res.status(401).json({ success: false, message: 'La sesión expiró (pasaron los 10 minutos). Pídele a Karl un link nuevo.' });
         }
 
         const user_phone = session.user_phone;
 
         // Si pasó la seguridad, buscamos los datos reales del usuario
-        const tasks = await db.all('SELECT * FROM tasks WHERE user_phone = ? AND status = "pending" ORDER BY id DESC', [user_phone]);
-        const reminders = await db.all('SELECT * FROM reminders WHERE user_phone = ? AND status = "pending" ORDER BY execute_at ASC', [user_phone]);
+        const tasks = await db.all('SELECT * FROM tasks WHERE user_phone = $1 AND status = "pending" ORDER BY id DESC', [user_phone]);
+        const reminders = await db.all('SELECT * FROM reminders WHERE user_phone = $1 AND status = "pending" ORDER BY execute_at ASC', [user_phone]);
         
-        let preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = ?', [user_phone]);
+        let preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = $1', [user_phone]);
         if (!preferences) {
-            await db.run('INSERT INTO user_preferences (user_phone) VALUES (?)', [user_phone]);
-            preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = ?', [user_phone]);
+            await db.run('INSERT INTO user_preferences (user_phone) VALUES ($1)', [user_phone]);
+            preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = $1', [user_phone]);
         }
 
         return res.json({
@@ -64,7 +64,7 @@ router.post('/preferences', async (req, res) => {
         }
 
         const db = getDB();
-        const session = await db.get('SELECT * FROM web_sessions WHERE token = ? AND pin = ?', [token, pin]);
+        const session = await db.get('SELECT * FROM web_sessions WHERE token = $1 AND pin = $2', [token, pin]);
         
         if (!session) {
             return res.status(401).json({ success: false, message: 'PIN incorrecto o sesión inválida' });
@@ -78,8 +78,8 @@ router.post('/preferences', async (req, res) => {
         const user_phone = session.user_phone;
 
         await db.run(
-            'UPDATE user_preferences SET daily_09 = ?, daily_12 = ?, daily_17 = ? WHERE user_phone = ?',
-            [daily_09 ? 1 : 0, daily_12 ? 1 : 0, daily_17 ? 1 : 0, user_phone]
+            'UPDATE user_preferences SET daily_09 = $1, daily_12 = $2, daily_17 = $3 WHERE user_phone = $4',
+            [!!daily_09, !!daily_12, !!daily_17, user_phone]
         );
 
         return res.json({ success: true, message: 'Preferencias actualizadas' });
@@ -98,7 +98,7 @@ router.delete('/item', async (req, res) => {
         }
 
         const db = getDB();
-        const session = await db.get('SELECT * FROM web_sessions WHERE token = ? AND pin = ?', [token, pin]);
+        const session = await db.get('SELECT * FROM web_sessions WHERE token = $1 AND pin = $2', [token, pin]);
         
         if (!session) {
             return res.status(401).json({ success: false, message: 'PIN incorrecto o sesión inválida' });
@@ -112,9 +112,9 @@ router.delete('/item', async (req, res) => {
         const user_phone = session.user_phone;
 
         if (type === 'task') {
-            await db.run('DELETE FROM tasks WHERE id = ? AND user_phone = ?', [id, user_phone]);
+            await db.run('DELETE FROM tasks WHERE id = $1 AND user_phone = $2', [id, user_phone]);
         } else if (type === 'reminder') {
-            await db.run('DELETE FROM reminders WHERE id = ? AND user_phone = ?', [id, user_phone]);
+            await db.run('DELETE FROM reminders WHERE id = $1 AND user_phone = $2', [id, user_phone]);
         } else {
             return res.status(400).json({ success: false, message: 'Tipo de ítem inválido' });
         }
