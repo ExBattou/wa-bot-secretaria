@@ -57,12 +57,12 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                     );
                 } else if (actionData.action === 'list_tasks') {
                     console.log(`   👉 Buscando tareas pendientes...`);
-                    const tasks = await db.all('SELECT * FROM tasks WHERE status = "pending" AND user_phone = $1', [user_phone]);
+                    const tasks = await db.all(`SELECT * FROM tasks WHERE status = 'pending' AND user_phone = $1`, [user_phone]);
                     const taskList = tasks.map((t: any) => `- ${t.title}`).join('\n');
                     textResponse += `\n\n📝 *Tareas pendientes:*\n${taskList || 'No hay tareas pendientes.'}`;
                 } else if (actionData.action === 'list_reminders') {
                     console.log(`   👉 Buscando alarmas programadas...`);
-                    const reminders = await db.all('SELECT * FROM reminders WHERE status = "pending" AND user_phone = $1', [user_phone]);
+                    const reminders = await db.all(`SELECT * FROM reminders WHERE status = 'pending' AND user_phone = $1`, [user_phone]);
                     const remList = reminders.map((r: any) => {
                         const dateStr = new Date(r.execute_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
                         return `- ${r.message} (⏰ ${dateStr})`;

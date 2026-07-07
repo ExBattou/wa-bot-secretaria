@@ -31,8 +31,8 @@ router.post('/auth', async (req, res) => {
         const user_phone = session.user_phone;
 
         // Si pasó la seguridad, buscamos los datos reales del usuario
-        const tasks = await db.all('SELECT * FROM tasks WHERE user_phone = $1 AND status = "pending" ORDER BY id DESC', [user_phone]);
-        const reminders = await db.all('SELECT * FROM reminders WHERE user_phone = $1 AND status = "pending" ORDER BY execute_at ASC', [user_phone]);
+        const tasks = await db.all(`SELECT * FROM tasks WHERE user_phone = $1 AND status = 'pending' ORDER BY id DESC`, [user_phone]);
+        const reminders = await db.all(`SELECT * FROM reminders WHERE user_phone = $1 AND status = 'pending' ORDER BY execute_at ASC`, [user_phone]);
         
         let preferences = await db.get('SELECT * FROM user_preferences WHERE user_phone = $1', [user_phone]);
         if (!preferences) {

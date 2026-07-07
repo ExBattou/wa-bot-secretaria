@@ -20,7 +20,7 @@ export const startCronJobs = () => {
             // Buscamos recordatorios pendientes que ya deban ejecutarse
             // Usamos un simple comparador de strings ya que el formato es YYYY-MM-DDTHH:mm:ss
             const pendingReminders = await db.all(
-                'SELECT * FROM reminders WHERE status = "pending" AND execute_at <= $1',
+                `SELECT * FROM reminders WHERE status = 'pending' AND execute_at <= $1`,
                 [isoString]
             );
 
@@ -45,10 +45,10 @@ export const startCronJobs = () => {
             try {
                 const db = getDB();
                 // Find all distinct users with pending tasks
-                const users = await db.all('SELECT DISTINCT user_phone FROM tasks WHERE status = "pending"');
+                const users = await db.all(`SELECT DISTINCT user_phone FROM tasks WHERE status = 'pending'`);
                 
                 for (const user of users) {
-                    const pendingTasks = await db.all('SELECT * FROM tasks WHERE user_phone = $1 AND status = "pending"', [user.user_phone]);
+                    const pendingTasks = await db.all(`SELECT * FROM tasks WHERE user_phone = $1 AND status = 'pending'`, [user.user_phone]);
                     
                     if (pendingTasks.length > 0) {
                         // Verificamos si el usuario tiene encendido este recordatorio
