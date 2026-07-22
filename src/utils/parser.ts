@@ -44,6 +44,9 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
             // Permitir que el LLM mande un array de acciones o un solo objeto
             const actions = Array.isArray(parsedData) ? parsedData : [parsedData];
 
+            let shouldAddWebLink = false;
+            let hasDashboardLink = false;
+
             for (const actionData of actions) {
                 console.log(`🚀 [Parser] Ejecutando acción: ${actionData.action}`);
                 if (actionData.action === 'save_expense') {
@@ -60,6 +63,7 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                     const tasks = await db.all(`SELECT * FROM tasks WHERE status = 'pending' AND user_phone = $1`, [user_phone]);
                     const taskList = tasks.map((t: any) => `- ${t.title}`).join('\n');
                     textResponse += `\n\n📝 *Tareas pendientes:*\n${taskList || 'No hay tareas pendientes.'}`;
+                    shouldAddWebLink = true;
                 } else if (actionData.action === 'list_reminders') {
                     console.log(`   👉 Buscando alarmas programadas...`);
                     const reminders = await db.all(`SELECT * FROM reminders WHERE status = 'pending' AND user_phone = $1`, [user_phone]);
@@ -68,6 +72,7 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                         return `- ${r.message} (⏰ ${dateStr})`;
                     }).join('\n');
                     textResponse += `\n\n⏰ *Tus alarmas programadas:*\n${remList || 'No tenés alarmas programadas en este momento.'}`;
+                    shouldAddWebLink = true;
                 } else if (actionData.action === 'delete_task') {
                     console.log(`   👉 Eliminando tarea: "${actionData.data.title}"`);
                     await db.run('DELETE FROM tasks WHERE user_phone = $1 AND title = $2', [user_phone, actionData.data.title]);
@@ -98,7 +103,25 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
 
                     const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
                     textResponse += `\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;
+                    hasDashboardLink = true;
                 }
+            }
+
+            if (shouldAddWebLink && !hasDashboardLink) {
+                const token = crypto.randomUUID();
+                const pin = Math.floor(100000 + Math.random() * 900000).toString(); // Pin de 6 dígitos
+                
+                // Expira en 10 minutos exactos
+                const expiresAt = new Date();
+                expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+                
+                await db.run(
+                    'INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES ($1, $2, $3, $4)',
+                    [token, user_phone, pin, expiresAt.toISOString()]
+                );
+
+                const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
+                textResponse += `\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;
             }
 
             // --- LÓGICA DE DEDUPLICACIÓN DE TAREAS ---

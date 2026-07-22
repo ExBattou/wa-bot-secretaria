@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { getDB } from '../config/db';
 import { sendWhatsAppMessage } from '../controllers/webhookController';
 import { generateProactiveGreeting } from './groqService';
+import crypto from 'crypto';
 
 export const startCronJobs = () => {
     // Se ejecuta cada minuto (* * * * *)
@@ -27,7 +28,15 @@ export const startCronJobs = () => {
             for (const reminder of pendingReminders) {
                 console.log(`⏰ [Cron] Ejecutando recordatorio para ${reminder.user_phone}: "${reminder.message}"`);
                 
-                const textToSend = `⏰ *Recordatorio programado:*\n${reminder.message}`;
+                const token = crypto.randomUUID();
+                const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                const expiresAt = new Date();
+                expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+                await db.run('INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES ($1, $2, $3, $4)', [token, reminder.user_phone, pin, expiresAt.toISOString()]);
+                const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+                const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
+
+                const textToSend = `⏰ *Recordatorio programado:*\n${reminder.message}\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;
                 await sendWhatsAppMessage(reminder.user_phone, textToSend);
 
                 // Lo borramos de la base de datos (como pidió el usuario)
@@ -62,7 +71,18 @@ export const startCronJobs = () => {
                         }
 
                         if (shouldSend) {
-                            const greetingText = await generateProactiveGreeting(pendingTasks, timeOfDay);
+                            let greetingText = await generateProactiveGreeting(pendingTasks, timeOfDay);
+                            
+                            const token = crypto.randomUUID();
+                            const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                            const expiresAt = new Date();
+                            expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+                            await db.run('INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES ($1, $2, $3, $4)', [token, user.user_phone, pin, expiresAt.toISOString()]);
+                            const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+                            const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
+
+                            greetingText += `\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;
+                            
                             await sendWhatsAppMessage(user.user_phone, greetingText);
                         } else {
                             console.log(`⏰ [Cron] Recordatorio de ${timeOfDay} salteado para ${user.user_phone} por configuración del usuario.`);
