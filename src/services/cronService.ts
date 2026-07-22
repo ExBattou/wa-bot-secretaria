@@ -33,7 +33,7 @@ export const startCronJobs = () => {
                 const expiresAt = new Date();
                 expiresAt.setMinutes(expiresAt.getMinutes() + 10);
                 await db.run('INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES ($1, $2, $3, $4)', [token, reminder.user_phone, pin, expiresAt.toISOString()]);
-                const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+                const baseUrl = process.env.BASE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
                 const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
 
                 const textToSend = `⏰ *Recordatorio programado:*\n${reminder.message}\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;
@@ -78,7 +78,7 @@ export const startCronJobs = () => {
                             const expiresAt = new Date();
                             expiresAt.setMinutes(expiresAt.getMinutes() + 10);
                             await db.run('INSERT INTO web_sessions (token, user_phone, pin, expires_at) VALUES ($1, $2, $3, $4)', [token, user.user_phone, pin, expiresAt.toISOString()]);
-                            const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+                            const baseUrl = process.env.BASE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
                             const dashboardUrl = `${baseUrl}/status.html?token=${token}`;
 
                             greetingText += `\n\n🔐 Acá tenés el link a tu tablero web privado:\n${dashboardUrl}\n\n🔑 Tu clave de acceso es: *${pin}*\n_(Ojo: Este link y la clave se autodestruirán en 10 minutos)_`;

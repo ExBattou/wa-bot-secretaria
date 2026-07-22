@@ -191,9 +191,9 @@ export const handleIncomingMessage = async (req: Request, res: Response) => {
                     console.log(`✅ Respuesta de la IA recibida.`);
                     
                     // Extraemos la URL base del servidor dinámicamente
-                    const host = req.headers.host || 'localhost:3000';
-                    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-                    const baseUrl = `${protocol}://${host}`;
+                    const host = req.headers['x-forwarded-host'] || process.env.RAILWAY_PUBLIC_DOMAIN || req.headers.host || 'localhost:3000';
+                    const protocol = process.env.RAILWAY_PUBLIC_DOMAIN ? 'https' : (req.headers['x-forwarded-proto'] || req.protocol || 'http');
+                    const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
 
                     console.log(`⚙️ Procesando acciones internas (Parser)...`);
                     const finalResponseToUser = await parseAndExecute(from, aiResponse, baseUrl);
