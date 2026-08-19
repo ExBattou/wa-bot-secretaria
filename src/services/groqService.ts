@@ -43,6 +43,71 @@ REGLAS DE DECISIÓN Y PROHIBICIONES ESTRICTAS:
 \`\`\`
 `;
 
+let cachedModel: string | null = null;
+const failedModels = new Set<string>();
+
+const PREFERRED_CHAT_MODELS = [
+    'llama-3.3-70b-versatile',
+    'llama3-70b-8192',
+    'llama3-8b-8192',
+    'llama-3.2-3b-preview',
+    'llama-3.2-1b-preview',
+    'llama-3.2-11b-vision-preview',
+    'gemma2-9b-it',
+    'mixtral-8x7b-32768'
+];
+
+export const getValidGroqModel = async (forceRefresh = false): Promise<string> => {
+    if (cachedModel && failedModels.has(cachedModel)) {
+        cachedModel = null;
+    }
+
+    if (!forceRefresh && cachedModel) {
+        return cachedModel;
+    }
+
+    try {
+        console.log('🔍 Consultando endpoint de modelos disponibles en Groq...');
+        const modelsList = await groq.models.list();
+        const availableModels = modelsList.data || [];
+
+        const activeChatModels = availableModels
+            .filter((m: any) => m.active !== false)
+            .map((m: any) => m.id)
+            .filter((id: string) => 
+                !id.includes('whisper') && 
+                !id.includes('guard') && 
+                !id.includes('embed') && 
+                !id.includes('safetensors') &&
+                !failedModels.has(id)
+            );
+
+        console.log('📋 Modelos de chat activos encontrados en Groq:', activeChatModels);
+
+        for (const preferred of PREFERRED_CHAT_MODELS) {
+            if (activeChatModels.includes(preferred) && !failedModels.has(preferred)) {
+                cachedModel = preferred;
+                console.log(`✅ Modelo seleccionado de Groq: ${preferred}`);
+                return preferred;
+            }
+        }
+
+        if (activeChatModels.length > 0 && activeChatModels[0]) {
+            const selected = activeChatModels[0];
+            cachedModel = selected;
+            console.log(`✅ Modelo seleccionado por defecto de Groq: ${selected}`);
+            return selected;
+        }
+    } catch (error) {
+        console.error('⚠️ Error al consultar endpoint de modelos de Groq, usando fallback por defecto:', error);
+    }
+
+    const fallbackCandidates = ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma2-9b-it'];
+    const fallback = fallbackCandidates.find(m => !failedModels.has(m)) || 'llama-3.3-70b-versatile';
+    cachedModel = fallback;
+    return fallback;
+};
+
 export const processText = async (userText: string, chatHistory: any[] = []) => {
     // Obtenemos la hora local de Argentina para que la IA sepa qué hora es
     const nowLocal = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false });
@@ -56,16 +121,39 @@ export const processText = async (userText: string, chatHistory: any[] = []) => 
         { role: 'user', content: userText }
     ];
 
+    let model = await getValidGroqModel();
+
     try {
         const chatCompletion = await groq.chat.completions.create({
             messages: messages as any,
-            model: 'llama-3.1-8b-instant',
+            model,
             temperature: 0.5,
         });
 
         return chatCompletion.choices[0]?.message?.content || '';
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error con Groq API:', error);
+
+        if (error?.status === 404 || error?.code === 'model_not_found' || error?.error?.code === 'model_not_found' || error?.message?.includes('model_not_found') || error?.message?.includes('does not exist')) {
+            console.warn(`⚠️ Modelo "${model}" no disponible o vencido. Marcarlo como no disponible y actualizando lista...`);
+            failedModels.add(model);
+            cachedModel = null;
+
+            const newModel = await getValidGroqModel(true);
+            if (newModel !== model) {
+                console.log(`🔄 Reintentando petición a Groq con el nuevo modelo: ${newModel}`);
+                try {
+                    const retryCompletion = await groq.chat.completions.create({
+                        messages: messages as any,
+                        model: newModel,
+                        temperature: 0.5,
+                    });
+                    return retryCompletion.choices[0]?.message?.content || '';
+                } catch (retryError) {
+                    console.error('Error al reintentar con el nuevo modelo en Groq:', retryError);
+                }
+            }
+        }
         return 'Perdón, hubo un error procesando tu mensaje. Intenta de nuevo.';
     }
 };
@@ -88,15 +176,39 @@ ${taskListText || '(No hay tareas pendientes)'}
 Tu objetivo: Escribe un mensaje de texto amigable y conversacional (usando "vos" y tono argentino) contándole cuáles son sus tareas pendientes. Motívalo a completarlas o pregúntale si ya hizo alguna para que la puedas tachar de la lista.
 IMPORTANTE: RESPONDE ÚNICAMENTE CON EL TEXTO QUE SE LE ENVIARÁ AL USUARIO POR WHATSAPP. NO agregues bloques JSON ni explicaciones extra. NO actúes como si el usuario te hubiera hablado, toma la iniciativa.
 `;
+
+    let model = await getValidGroqModel();
+
     try {
         const chatCompletion = await groq.chat.completions.create({
             messages: [{ role: 'system', content: prompt }],
-            model: 'llama-3.1-8b-instant',
+            model,
             temperature: 0.7,
         });
         return chatCompletion.choices[0]?.message?.content || '¡Hola! Quería recordarte que tienes tareas pendientes. Avisame si querés que tachemos alguna.';
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error generando saludo proactivo:', error);
+
+        if (error?.status === 404 || error?.code === 'model_not_found' || error?.error?.code === 'model_not_found' || error?.message?.includes('model_not_found') || error?.message?.includes('does not exist')) {
+            console.warn(`⚠️ Modelo "${model}" no disponible o vencido. Marcarlo como no disponible y actualizando lista...`);
+            failedModels.add(model);
+            cachedModel = null;
+
+            const newModel = await getValidGroqModel(true);
+            if (newModel !== model) {
+                try {
+                    const retryCompletion = await groq.chat.completions.create({
+                        messages: [{ role: 'system', content: prompt }],
+                        model: newModel,
+                        temperature: 0.7,
+                    });
+                    return retryCompletion.choices[0]?.message?.content || '¡Hola! Quería recordarte que tienes tareas pendientes. Avisame si querés que tachemos alguna.';
+                } catch (retryError) {
+                    console.error('Error al reintentar saludo proactivo con nuevo modelo:', retryError);
+                }
+            }
+        }
+
         return '¡Hola! Este es un mensaje automático para recordarte tus tareas pendientes.';
     }
 };

@@ -1,12 +1,29 @@
 import cron from 'node-cron';
 import { getDB } from '../config/db';
 import { sendWhatsAppMessage } from '../controllers/webhookController';
-import { generateProactiveGreeting } from './groqService';
+import { generateProactiveGreeting, getValidGroqModel } from './groqService';
 import crypto from 'crypto';
 
 export const startCronJobs = () => {
+    // Inicialización del modelo de Groq al arrancar los cron jobs
+    getValidGroqModel(true).catch(err => console.error('Error al inicializar modelo de Groq:', err));
+
+    // Cron mensual de actualización de modelos de Groq (1º de cada mes a las 00:00 hs)
+    cron.schedule('0 0 1 * *', async () => {
+        console.log('⏰ [Cron Mensual] Actualizando lista de modelos de Groq...');
+        try {
+            const updatedModel = await getValidGroqModel(true);
+            console.log(`✅ [Cron Mensual] Modelo de Groq actualizado con éxito: ${updatedModel}`);
+        } catch (error) {
+            console.error('❌ [Cron Mensual] Error al actualizar modelo de Groq:', error);
+        }
+    }, {
+        timezone: 'America/Argentina/Buenos_Aires'
+    });
+
     // Se ejecuta cada minuto (* * * * *)
     cron.schedule('* * * * *', async () => {
+
         try {
             const db = getDB();
             
