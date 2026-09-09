@@ -1,4 +1,4 @@
-import { Telegraf } from 'telegraf';
+import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import axios from 'axios';
 import fs from 'fs';
@@ -24,9 +24,9 @@ export const sendTelegramMessage = async (chatId: string, text: string) => {
     try {
         await bot.telegram.sendMessage(chatId, text, {
             parse_mode: 'Markdown'
-        }).catch(async (markdownError) => {
+        }).catch(async (markdownError: any) => {
             // Si falla por caracteres especiales en Markdown, enviamos texto plano
-            console.warn('⚠️ Error enviando con parse_mode Markdown, reintentando como texto plano:', markdownError.message);
+            console.warn('⚠️ Error enviando con parse_mode Markdown, reintentando como texto plano:', markdownError?.message || markdownError);
             await bot.telegram.sendMessage(chatId, text);
         });
     } catch (error: any) {
@@ -140,13 +140,13 @@ export const setupTelegramBot = (getBaseUrl: () => string) => {
         return;
     }
 
-    bot.start(async (ctx) => {
+    bot.start(async (ctx: Context) => {
         const name = ctx.from?.first_name || 'che';
         const welcomeText = `👋 ¡Hola ${name}! Soy *Karl*, tu secretario ejecutivo virtual.\n\nPuedo ayudarte a:\n- 📝 Guardar y consultar tus tareas y recordatorios.\n- ⏰ Configurar alarmas y avisos.\n- 💰 Registrar tus gastos y llevar el control.\n- 📊 Darte acceso a tu tablero web privado.\n\nTambién podés enviarme notas de voz 🎙️ y las transcribo al instante.\n\n¿En qué te puedo dar una mano hoy?`;
         await ctx.replyWithMarkdown(welcomeText);
     });
 
-    bot.help(async (ctx) => {
+    bot.help(async (ctx: Context) => {
         const helpText = `🛠️ *Comandos y Funciones de Karl:*\n\n` +
             `- *Agendar tareas:* _"Anotame reunión con Lucas mañana a las 10hs"_\n` +
             `- *Recordatorios:* _"Haceme acordar en 30 minutos de pagar la luz"_\n` +
@@ -159,7 +159,8 @@ export const setupTelegramBot = (getBaseUrl: () => string) => {
     });
 
     // Manejo de mensajes de texto
-    bot.on(message('text'), async (ctx) => {
+    bot.on(message('text'), async (ctx: Context) => {
+        if (!ctx.chat || !ctx.message || !('text' in ctx.message)) return;
         const chatId = ctx.chat.id.toString();
         const userText = ctx.message.text;
         const baseUrl = getBaseUrl();
@@ -167,9 +168,13 @@ export const setupTelegramBot = (getBaseUrl: () => string) => {
     });
 
     // Manejo de notas de voz y audios
-    bot.on([message('voice'), message('audio')], async (ctx) => {
+    bot.on([message('voice'), message('audio')], async (ctx: Context) => {
+        if (!ctx.chat || !ctx.message) return;
         const chatId = ctx.chat.id.toString();
-        const fileId = 'voice' in ctx.message ? ctx.message.voice.file_id : ctx.message.audio.file_id;
+        const msg = ctx.message as any;
+        const fileId = msg.voice ? msg.voice.file_id : msg.audio?.file_id;
+
+        if (!fileId) return;
 
         console.log(`🎙️ Nota de voz recibida de Telegram [${chatId}]. Descargando...`);
         await ctx.sendChatAction('typing');
@@ -212,7 +217,7 @@ export const setupTelegramBot = (getBaseUrl: () => string) => {
         }
     });
 
-    bot.catch((err: any, ctx) => {
-        console.error(`❌ Error en Telegraf bot para update ${ctx.update.update_id}:`, err);
+    bot.catch((err: any, ctx: Context) => {
+        console.error(`❌ Error en Telegraf bot para update ${ctx.update?.update_id}:`, err);
     });
 };

@@ -1,19 +1,24 @@
 {
   "name": "wa-bot-secretariocarl",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo "Error: no test specified" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^26.0.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.20.0",
     "axios": "^1.18.0",
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
@@ -21,16 +26,12 @@
     "multer": "^2.2.0",
     "node-cron": "^4.2.1",
     "pg": "^8.22.0",
+    "telegraf": "^4.16.3",
+    "typescript": "^5.8.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/multer": "^2.1.0",
-    "@types/node": "^26.0.0",
-    "@types/node-cron": "^3.0.11",
-    "@types/pg": "^8.20.0",
     "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "ts-node": "^10.9.2"
   }
 }

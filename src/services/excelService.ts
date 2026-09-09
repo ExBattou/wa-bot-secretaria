@@ -6,8 +6,12 @@ const dataPath = process.env.DATA_PATH || path.join(__dirname, '../../data');
 const excelFilePath = path.join(dataPath, 'gastos.xlsx');
 
 export const saveExpense = (user_phone: string, expenseData: { date: string, provider: string, amount: number, currency: string, category: string }) => {
+    if (!fs.existsSync(dataPath)) {
+        fs.mkdirSync(dataPath, { recursive: true });
+    }
+
     let workbook: xlsx.WorkBook;
-    const sheetName = user_phone; // Separar por hoja usando el teléfono
+    const sheetName = user_phone; // Separar por hoja usando el identificador
 
     if (fs.existsSync(excelFilePath)) {
         workbook = xlsx.readFile(excelFilePath);

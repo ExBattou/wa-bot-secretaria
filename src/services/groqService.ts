@@ -1,9 +1,12 @@
 import Groq from 'groq-sdk';
 import fs from 'fs';
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
-});
+export interface ActiveModelInfo {
+    id: string;
+    owned_by: string;
+    active: boolean;
+    context_window?: number;
+}
 
 const SYSTEM_PROMPT = `
 Eres Karl, un secretario ejecutivo virtual proactivo de Argentina. Tu tono es cercano, eficiente y usas el "vos". No hablas con terceros.
@@ -11,7 +14,7 @@ Tus funciones son gestionar una agenda interna y registrar gastos.
 
 REGLA ESTRICTA DE FORMATO:
 Tu respuesta debe tener DOS partes:
-1. Texto amigable para WhatsApp.
+1. Texto amigable para Telegram (puedes usar emojis y negritas estándar con *texto*).
 2. OPCIONALMENTE, un bloque JSON al final, envuelto en \`\`\`json y \`\`\`.
 ¡EL BLOQUE JSON DEBE SER VÁLIDO! Si envías múltiples acciones, DEBEN estar en un ARRAY. Nunca pongas objetos sueltos.
 
@@ -43,119 +46,185 @@ REGLAS DE DECISIÓN Y PROHIBICIONES ESTRICTAS:
 \`\`\`
 `;
 
-let cachedModel: string | null = null;
-const failedModels = new Set<string>();
+export class GroqService {
+    private client: Groq | null = null;
+    private cachedModels: ActiveModelInfo[] = [];
+    private lastCacheTime = 0;
+    private readonly CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos de caché
 
-const PREFERRED_CHAT_MODELS = [
-    'llama-3.3-70b-versatile',
-    'llama3-70b-8192',
-    'llama3-8b-8192',
-    'llama-3.2-3b-preview',
-    'llama-3.2-1b-preview',
-    'llama-3.2-11b-vision-preview',
-    'gemma2-9b-it',
-    'mixtral-8x7b-32768'
-];
+    // Patrones que no corresponden a modelos conversacionales
+    private readonly NON_CHAT_PATTERNS = [
+        'guard',
+        'safeguard',
+        'whisper',
+        'orpheus',
+        'moderation',
+        'tts',
+        'stt',
+        'embed',
+        'safetensors'
+    ];
 
-export const getValidGroqModel = async (forceRefresh = false): Promise<string> => {
-    if (cachedModel && failedModels.has(cachedModel)) {
-        cachedModel = null;
+    // Jerarquía de prioridad de modelos conversacionales de Groq
+    private readonly CONVERSATIONAL_PRIORITY = [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-70b-versatile',
+        'llama-3.1-8b-instant',
+        'qwen/qwen3.8-27b',
+        'qwen/qwen3.6-27b',
+        'groq/compound',
+        'groq/compound-mini',
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
+        'mixtral-8x7b-32768',
+        'gemma2-9b-it'
+    ];
+
+    private getClient(): Groq {
+        if (!this.client) {
+            const apiKey = process.env.GROQ_API_KEY;
+            if (!apiKey) {
+                throw new Error('GROQ_API_KEY no está configurada en las variables de entorno.');
+            }
+            this.client = new Groq({ apiKey });
+        }
+        return this.client;
     }
 
-    if (!forceRefresh && cachedModel) {
-        return cachedModel;
+    public isChatModel(modelId: string): boolean {
+        const lower = modelId.toLowerCase();
+        for (const pattern of this.NON_CHAT_PATTERNS) {
+            if (lower.includes(pattern)) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    try {
-        console.log('🔍 Consultando endpoint de modelos disponibles en Groq...');
-        const modelsList = await groq.models.list();
-        const availableModels = modelsList.data || [];
+    public async getActiveModels(forceRefresh = false): Promise<ActiveModelInfo[]> {
+        const now = Date.now();
+        if (!forceRefresh && this.cachedModels.length > 0 && now - this.lastCacheTime < this.CACHE_TTL_MS) {
+            return this.cachedModels;
+        }
 
-        const activeChatModels = availableModels
-            .filter((m: any) => m.active !== false)
-            .map((m: any) => m.id)
-            .filter((id: string) => 
-                !id.includes('whisper') && 
-                !id.includes('guard') && 
-                !id.includes('embed') && 
-                !id.includes('safetensors') &&
-                !failedModels.has(id)
-            );
+        try {
+            console.log('🔍 [Groq] Consultando endpoint de modelos activos...');
+            const client = this.getClient();
+            const response = await client.models.list();
+            const rawData = response.data || [];
 
-        console.log('📋 Modelos de chat activos encontrados en Groq:', activeChatModels);
+            const activeList: ActiveModelInfo[] = rawData
+                .filter((m: any) => m.active !== false && this.isChatModel(m.id))
+                .map((m: any) => ({
+                    id: m.id,
+                    owned_by: m.owned_by,
+                    active: m.active ?? true,
+                    context_window: m.context_window
+                }));
 
-        for (const preferred of PREFERRED_CHAT_MODELS) {
-            if (activeChatModels.includes(preferred) && !failedModels.has(preferred)) {
-                cachedModel = preferred;
-                console.log(`✅ Modelo seleccionado de Groq: ${preferred}`);
-                return preferred;
+            this.cachedModels = activeList;
+            this.lastCacheTime = now;
+            console.log(`📋 [Groq] ${activeList.length} modelos de chat activos encontrados.`);
+            return this.cachedModels;
+        } catch (error: any) {
+            console.error('[Groq] Error consultando modelos activos:', error?.message || error);
+            if (this.cachedModels.length > 0) {
+                return this.cachedModels;
+            }
+            return [];
+        }
+    }
+
+    public async getCandidateModels(): Promise<string[]> {
+        if (process.env.GROQ_MODEL && process.env.GROQ_MODEL.trim() !== '') {
+            return [process.env.GROQ_MODEL.trim()];
+        }
+
+        try {
+            const activeModels = await this.getActiveModels();
+            const activeIds = new Set(activeModels.map(m => m.id));
+            const candidates: string[] = [];
+
+            for (const model of this.CONVERSATIONAL_PRIORITY) {
+                if (activeIds.has(model)) {
+                    candidates.push(model);
+                }
+            }
+
+            for (const m of activeModels) {
+                if (!candidates.includes(m.id)) {
+                    candidates.push(m.id);
+                }
+            }
+
+            if (candidates.length === 0) {
+                candidates.push('llama-3.3-70b-versatile', 'llama-3.1-8b-instant');
+            }
+
+            return candidates;
+        } catch {
+            return ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
+        }
+    }
+
+    public async chatCompletion(
+        messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+        temperature = 0.5
+    ): Promise<string> {
+        const client = this.getClient();
+        const candidateModels = await this.getCandidateModels();
+        let lastError: any = null;
+
+        for (const modelToTry of candidateModels) {
+            try {
+                const startTime = Date.now();
+                const completion = await client.chat.completions.create({
+                    messages: messages as any,
+                    model: modelToTry,
+                    temperature
+                });
+
+                const durationMs = Date.now() - startTime;
+                const content = completion.choices[0]?.message?.content || '';
+                console.log(`✅ [Groq] Respuesta generada con éxito usando "${modelToTry}" (${durationMs}ms)`);
+                return content;
+            } catch (err: any) {
+                lastError = err;
+                console.warn(`⚠️ [Groq] Modelo "${modelToTry}" falló (${err?.message || err}). Reintentando con siguiente candidato...`);
             }
         }
 
-        if (activeChatModels.length > 0 && activeChatModels[0]) {
-            const selected = activeChatModels[0];
-            cachedModel = selected;
-            console.log(`✅ Modelo seleccionado por defecto de Groq: ${selected}`);
-            return selected;
-        }
-    } catch (error) {
-        console.error('⚠️ Error al consultar endpoint de modelos de Groq, usando fallback por defecto:', error);
+        console.error('❌ [Groq] Todos los modelos candidatos fallaron:', lastError);
+        return 'Perdón, hubo un inconveniente al procesar tu solicitud. Por favor intenta de nuevo en unos segundos.';
     }
 
-    const fallbackCandidates = ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma2-9b-it'];
-    const fallback = fallbackCandidates.find(m => !failedModels.has(m)) || 'llama-3.3-70b-versatile';
-    cachedModel = fallback;
-    return fallback;
-};
+    public async transcribeAudio(audioFilePath: string): Promise<string> {
+        const client = this.getClient();
+        const translation = await client.audio.transcriptions.create({
+            file: fs.createReadStream(audioFilePath),
+            model: 'whisper-large-v3',
+            prompt: 'Transcripción en español de Argentina.',
+            language: 'es',
+            response_format: 'json'
+        });
 
-export const processText = async (userText: string, chatHistory: any[] = []) => {
-    // Obtenemos la hora local de Argentina para que la IA sepa qué hora es
+        return translation.text;
+    }
+}
+
+export const groqService = new GroqService();
+
+export const processText = async (userText: string, chatHistory: any[] = []): Promise<string> => {
     const nowLocal = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false });
-    
-    // Inyectamos la hora en el prompt para cálculos de Cron
     const DYNAMIC_PROMPT = SYSTEM_PROMPT + `\n\nINFO DEL SISTEMA (MUY IMPORTANTE):\n- La hora y fecha ACTUAL EXACTA en Argentina es: ${nowLocal}.\n- Si el usuario te pide un recordatorio "en X minutos", "mañana a las Y", suma ese tiempo a esta hora base y ponlo en el campo execute_at usando formato ISO: YYYY-MM-DDTHH:mm:ss (sin zona horaria).`;
 
     const messages = [
-        { role: 'system', content: DYNAMIC_PROMPT },
+        { role: 'system' as const, content: DYNAMIC_PROMPT },
         ...chatHistory,
-        { role: 'user', content: userText }
+        { role: 'user' as const, content: userText }
     ];
 
-    let model = await getValidGroqModel();
-
-    try {
-        const chatCompletion = await groq.chat.completions.create({
-            messages: messages as any,
-            model,
-            temperature: 0.5,
-        });
-
-        return chatCompletion.choices[0]?.message?.content || '';
-    } catch (error: any) {
-        console.error('Error con Groq API:', error);
-
-        if (error?.status === 404 || error?.code === 'model_not_found' || error?.error?.code === 'model_not_found' || error?.message?.includes('model_not_found') || error?.message?.includes('does not exist')) {
-            console.warn(`⚠️ Modelo "${model}" no disponible o vencido. Marcarlo como no disponible y actualizando lista...`);
-            failedModels.add(model);
-            cachedModel = null;
-
-            const newModel = await getValidGroqModel(true);
-            if (newModel !== model) {
-                console.log(`🔄 Reintentando petición a Groq con el nuevo modelo: ${newModel}`);
-                try {
-                    const retryCompletion = await groq.chat.completions.create({
-                        messages: messages as any,
-                        model: newModel,
-                        temperature: 0.5,
-                    });
-                    return retryCompletion.choices[0]?.message?.content || '';
-                } catch (retryError) {
-                    console.error('Error al reintentar con el nuevo modelo en Groq:', retryError);
-                }
-            }
-        }
-        return 'Perdón, hubo un error procesando tu mensaje. Intenta de nuevo.';
-    }
+    return await groqService.chatCompletion(messages, 0.5);
 };
 
 export const generateProactiveGreeting = async (tasks: any[], timeOfDay: '09:00' | '12:00' | '17:00'): Promise<string> => {
@@ -173,54 +242,14 @@ ${context}
 El usuario tiene estas tareas pendientes en su agenda interna:
 ${taskListText || '(No hay tareas pendientes)'}
 
-Tu objetivo: Escribe un mensaje de texto amigable y conversacional (usando "vos" y tono argentino) contándole cuáles son sus tareas pendientes. Motívalo a completarlas o pregúntale si ya hizo alguna para que la puedas tachar de la lista.
-IMPORTANTE: RESPONDE ÚNICAMENTE CON EL TEXTO QUE SE LE ENVIARÁ AL USUARIO POR WHATSAPP. NO agregues bloques JSON ni explicaciones extra. NO actúes como si el usuario te hubiera hablado, toma la iniciativa.
+Tu objetivo: Escribe un mensaje amigable y conversacional (usando "vos" y tono argentino) contándole cuáles son sus tareas pendientes. Motívalo a completarlas o pregúntale si ya hizo alguna para que la puedas tachar de la lista.
+IMPORTANTE: RESPONDE ÚNICAMENTE CON EL TEXTO QUE SE LE ENVIARÁ AL USUARIO POR TELEGRAM. NO agregues bloques JSON ni explicaciones extra. NO actúes como si el usuario te hubiera hablado, toma la iniciativa.
 `;
 
-    let model = await getValidGroqModel();
-
-    try {
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [{ role: 'system', content: prompt }],
-            model,
-            temperature: 0.7,
-        });
-        return chatCompletion.choices[0]?.message?.content || '¡Hola! Quería recordarte que tienes tareas pendientes. Avisame si querés que tachemos alguna.';
-    } catch (error: any) {
-        console.error('Error generando saludo proactivo:', error);
-
-        if (error?.status === 404 || error?.code === 'model_not_found' || error?.error?.code === 'model_not_found' || error?.message?.includes('model_not_found') || error?.message?.includes('does not exist')) {
-            console.warn(`⚠️ Modelo "${model}" no disponible o vencido. Marcarlo como no disponible y actualizando lista...`);
-            failedModels.add(model);
-            cachedModel = null;
-
-            const newModel = await getValidGroqModel(true);
-            if (newModel !== model) {
-                try {
-                    const retryCompletion = await groq.chat.completions.create({
-                        messages: [{ role: 'system', content: prompt }],
-                        model: newModel,
-                        temperature: 0.7,
-                    });
-                    return retryCompletion.choices[0]?.message?.content || '¡Hola! Quería recordarte que tienes tareas pendientes. Avisame si querés que tachemos alguna.';
-                } catch (retryError) {
-                    console.error('Error al reintentar saludo proactivo con nuevo modelo:', retryError);
-                }
-            }
-        }
-
-        return '¡Hola! Este es un mensaje automático para recordarte tus tareas pendientes.';
-    }
+    const messages = [{ role: 'system' as const, content: prompt }];
+    return await groqService.chatCompletion(messages, 0.7);
 };
 
-export const transcribeAudio = async (audioFilePath: string) => {
-    const translation = await groq.audio.transcriptions.create({
-        file: fs.createReadStream(audioFilePath),
-        model: "whisper-large-v3",
-        prompt: "Transcripción en español de Argentina.",
-        language: "es",
-        response_format: "json"
-    });
-
-    return translation.text;
+export const transcribeAudio = async (audioFilePath: string): Promise<string> => {
+    return await groqService.transcribeAudio(audioFilePath);
 };

@@ -53,7 +53,7 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                     console.log(`   👉 Guardando gasto: ${JSON.stringify(actionData.data)}`);
                     saveExpense(user_phone, actionData.data);
                 } else if (actionData.action === 'add_task') {
-                    console.log(`   👉 Guardando tarea en SQLite: "${actionData.data.title}"`);
+                    console.log(`   👉 Guardando tarea: "${actionData.data.title}"`);
                     await db.run(
                         'INSERT INTO tasks (user_phone, title, due_date) VALUES ($1, $2, $3)',
                         [user_phone, actionData.data.title, actionData.data.due_date || null]
@@ -125,8 +125,6 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
             }
 
             // --- LÓGICA DE DEDUPLICACIÓN DE TAREAS ---
-            // Eliminamos tareas duplicadas para el mismo usuario que tengan el mismo título 
-            // y hayan sido creadas en el mismo minuto.
             console.log(`🧹 [Parser] Limpiando posibles tareas duplicadas para el usuario...`);
             await db.run(`
                 DELETE FROM tasks
@@ -138,7 +136,6 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
                     GROUP BY title, date_trunc('minute', created_at)
                 )
             `, [user_phone, user_phone]);
-            // ------------------------------------------
 
         } catch (error) {
             console.error('❌ [Parser] Error parseando o ejecutando la acción JSON:', error);
@@ -147,5 +144,5 @@ export const parseAndExecute = async (user_phone: string, aiResponse: string, ba
         console.log(`📝 [Parser] No se detectaron acciones JSON. Solo texto.`);
     }
 
-    return textResponse; // El texto limpio para enviar por WhatsApp
+    return textResponse; // El texto limpio para enviar por Telegram
 };
