@@ -68,16 +68,14 @@ export class GroqService {
     // Jerarquía de prioridad de modelos conversacionales de Groq
     private readonly CONVERSATIONAL_PRIORITY = [
         'llama-3.3-70b-versatile',
-        'llama-3.1-70b-versatile',
         'llama-3.1-8b-instant',
-        'qwen/qwen3.8-27b',
-        'qwen/qwen3.6-27b',
-        'groq/compound',
-        'groq/compound-mini',
-        'openai/gpt-oss-120b',
-        'openai/gpt-oss-20b',
+        'llama-3.1-70b-versatile',
+        'llama3-70b-8192',
+        'llama3-8b-8192',
         'mixtral-8x7b-32768',
-        'gemma2-9b-it'
+        'gemma2-9b-it',
+        'qwen/qwen3.8-27b',
+        'qwen/qwen3.6-27b'
     ];
 
     private getClient(): Groq {
@@ -181,7 +179,8 @@ export class GroqService {
                 const completion = await client.chat.completions.create({
                     messages: messages as any,
                     model: modelToTry,
-                    temperature
+                    temperature,
+                    max_tokens: 800
                 });
 
                 const durationMs = Date.now() - startTime;
