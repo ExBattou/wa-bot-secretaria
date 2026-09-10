@@ -33,6 +33,7 @@ const getBaseUrl = (): string => {
 
 const startServer = async () => {
     try {
+        console.log('⚡ Iniciando Karl Secretario v1.0.1...');
         await initDB();
         
         // Configuración de listeners del bot de Telegram
